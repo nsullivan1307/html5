@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Interactive Canvas</title>
+    </head>
+    
+    <body style="
+            font-family:sans-serif;
+            font-size:15px;
+            width:600px;
+            margin: 0;
+            overflow-x: hidden;
+            background-color:#e0e0e0;">
+        
+        
+        
+        <div style="width:500px; margin: 0;">
+            <h1 style="
+                    font-size:24px;
+                    text-align:center;
+                    color:#800000;
+                    position: absolute;
+                    margin-left: auto;
+                    margin-right: auto;">
+                Interactive Canvas
+            </h1>
+            <canvas id="theCanvas" style="position:relative;">
+                Canvas not supported; please update your browser.
+            </canvas>
+            
+            Mouse Position = <span id="mouseReadout">3000</span>
+        </div>
+        
+        <script>
+            var theCanvas = document.getElementById("theCanvas");
+            var theContext = theCanvas.getContext("2d");
+            var mouseReadout = document.getElementById("mouseReadout");
+            theCanvas.width = window.innerWidth;
+            theCanvas.height = window.innerHeight;
+            var timer;
+            const N = 10;
+            const xp = Array(N), yp = Array(N), vx = Array(N), vy = Array(N);
+            
+            window.addEventListener('resize', function () {
+              theCanvas.width = window.innerWidth;
+              theCanvas.height = window.innerHeight;
+            });
+            
+            let mouse = {
+                x : theCanvas.width/2,
+                y : theCanvas.height/2
+            };
+            
+            window.addEventListener('mousemove', function (e) {
+              mouse.x = event.x;
+              mouse.y = event.y;
+            });
+            
+            window.addEventListener('click', function (e) {
+                initiate();
+            });
+            
+            function showMouse() {
+                mouseReadout.innerHTML = vx;
+            }
+            
+            function drawShape() {
+                for (let i = 0; i < N; i++) {
+                    theContext.beginPath();
+                    theContext.arc(xp[i], yp[i], 5, 0, 2*Math.PI);
+                    theContext.fillStyle = "red";
+                    theContext.fill();
+                }
+            }
+            
+            function moveShape() {
+                var k = 5000000;
+                var gamma = 1;
+                var dt = 0.01;
+                for (let i = 0; i < N; i++) {
+                    var X = mouse.x - xp[i];
+                    var Y = mouse.y - yp[i];
+                    var R2 = X*X + Y*Y;
+                    var ax = k * X / (R2 ** (3/2)) - gamma * vx[i];
+                    var ay = k * Y / (R2 ** (3/2)) - gamma * vy[i];
+                    for (let j = 0; j < N; j++){
+                        if (i != j){
+                            var dx = xp[i] - xp[j];
+                            var dy = yp[i] - yp[j];
+                            var r2 = dx*dx + dy*dy;
+                            ax += k * dx / (N * (r2 ** (5/2)));
+                            ay += k * dy / (N * (r2 ** (5/2)));
+                        }
+                    }
+                    vx[i] += ax * dt;
+                    vy[i] += ay * dt;
+                    xp[i] += vx[i] * dt;
+                    yp[i] += vy[i] * dt;
+                }
+                drawShape();
+            }
+            
+            function animate() {
+                theContext.clearRect(0, 0, theCanvas.width, theCanvas.height);
+                moveShape();
+                showMouse();
+                timer = window.setTimeout(animate, 1000/30);
+            }
+            
+            function initiate() {
+                window.clearTimeout(timer);
+                let w = theCanvas.width/2;
+                let h = theCanvas.height/2;
+                for (let i = 0; i < N; i++) {
+                    xp[i] = w - 90 + 20*i;
+                    yp[i] = h;
+                    vx[i] = 0;
+                    vy[i] = 0;
+                }
+                animate();
+            }
+            initiate();
+            
+        </script>
+    </body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Interactive Canvas Drag</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.3.2/math.js"></script> 
+    </head>
+    
+    <body style="
+            font-family:sans-serif;
+            font-size:15px;
+            width:600px;
+            margin: 0;
+            overflow-x: hidden;
+            background-color:#e0e0e0;">
+        
+        
+        
+        <div style="width:500px; margin: 0;">
+            <h1 style="
+                    font-size:24px;
+                    text-align:center;
+                    color:#800000;
+                    position: absolute;
+                    margin-left: auto;
+                    margin-right: auto;">
+                Interactive Canvas
+            </h1>
+            Mouse Position = <span id="mouseReadout">3000</span>
+            <canvas id="theCanvas" style="position:relative;">
+                Canvas not supported; please update your browser.
+            </canvas>
+            
+        </div>
+        
+        <script>
+            var theCanvas = document.getElementById("theCanvas");
+            var theContext = theCanvas.getContext("2d");
+            var mouseReadout = document.getElementById("mouseReadout");
+            theCanvas.width = window.innerWidth;
+            theCanvas.height = window.innerHeight - 30;
+            var timer;
+            const N = 100;
+            const points = Array(N);
+            
+            
+            window.addEventListener('resize', function () {
+              theCanvas.width = window.innerWidth;
+              theCanvas.height = window.innerHeight;
+            });
+            
+            let mouse = {
+                r : math.matrix([0,0,0]),
+                down : false
+            };
+
+            var touchmode = 0;
+
+            let view = {
+                scale : 1000,
+                r : math.matrix([0,0,-1000]),
+                M : math.identity(3),
+            };
+
+            let drag = {
+                rView : math.matrix([0,0,0]),
+                rMouse : math.matrix([0,0,0])
+            }
+
+            let rotate = {
+                scale : 1000,
+                MView : math.identity(3),
+                rMouseMean : math.matrix([0,0,0]),
+                rMouseSep : math.matrix([0,0,0])
+            }
+
+            function dragView() {
+                view.r = math.add(drag.rView,drag.rMouse,math.multiply(-1,mouse.r));
+            }
+
+            function angle(rSep) {
+                x_ = rSep.get([0]);
+                y_ = rSep.get([1]);
+                return math.atan2(y_,x_);
+            }
+
+            function dist(rSep) {
+                x_ = rSep.get([0]);
+                y_ = rSep.get([1]);
+                return math.sqrt(x_*x_ + y_*y_);
+            }
+
+            function rotateView0() {
+                rDrag = math.subtract(rotate.rMouse,mouse.r);
+                x = rDrag.get([0]);
+                y = rDrag.get([1]);
+                Kx = math.matrix([[0,0,x],[0,0,0],[-x,0,0]]);
+                Ky = math.matrix([[0,0,0],[0,0,y],[0,y,0]]);
+                K = math.multiply(math.add(Kx,Ky),10/view.scale);
+                M0 = math.expm(K);
+                view.M = math.multiply(M0,rotate.MView);
+            }
+
+            function rotateView(touches) {
+                rMean = math.matrix([(touches[0].pageX + touches[1].pageX)/2,(touches[0].pageY + touches[1].pageY)/2,0]);
+                rSep = math.matrix([(touches[0].pageX - touches[1].pageX),(touches[0].pageY - touches[1].pageY),0]);
+                rDrag = math.subtract(rotate.rMouseMean, rMean);
+                x = rDrag.get([0]);
+                y = rDrag.get([1]);
+                theta0 = angle(rotate.rMouseSep);
+                theta = angle(rSep);
+                r0 = dist(rotate.rMouseSep);
+                r = dist(rSep);
+
+                Kx = math.matrix([[0,0,x],[0,0,0],[-x,0,0]]);
+                Ky = math.matrix([[0,0,0],[0,0,y],[0,y,0]]);
+                Kz = math.matrix([[0,(theta-theta0),0],[(theta-theta0),0,0],[0,0,0]])
+                K = math.add(math.multiply(math.add(Kx,Ky),10/rotate.scale),Kz);
+                M0 = math.expm(K);
+                view.M = math.multiply(M0,rotate.MView);
+                view.scale = rotate.scale*r/r0;
+                //mouseReadout.innerHTML = points[0].rView;
+            }
+
+            onmousemove = (event) => {
+                mouse.r = math.matrix([event.x, event.y, 0]);
+                if (mouse.down) {
+                    rotateView0();
+                }
+            };
+
+            onmousedown = (event) => {
+                mouse.down = true;
+                drag.rView = view.r;
+                drag.rMouse = mouse.r;
+                rotate.MView = view.M;
+                rotate.rMouse = mouse.r;
+            };
+
+            onmouseup = (event) => {
+                mouse.down = false;
+            };
+            
+            window.addEventListener('mousemove', onmousemove);
+
+            window.addEventListener('mousedown', onmousedown);
+
+            window.addEventListener('mouseup', onmouseup);
+
+            handleMove = (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                touches = event.targetTouches;
+                if (mouse.down) {
+                    if (touches.length == 1) {
+                        mouse.r = math.matrix([touches[0].pageX,touches[0].pageY,0]);
+                        rotateView0();
+                    }
+                    if (touches.length == 2) {
+                        rotateView(touches);
+                    }
+                }
+                
+            };
+
+            handleStart = (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                touches = event.targetTouches;
+                if (touches.length == 1) {
+                    mouse.down = true;
+                    touchmode = 1;
+                    drag.rView = view.r;
+                    drag.rMouse = math.matrix([touches[0].pageX,touches[0].pageY,0]);
+                    rotate.MView = view.M;
+                    rotate.rMouse = math.matrix([touches[0].pageX,touches[0].pageY,0]);
+                }
+                if (touches.length == 2) {
+                    mouse.down = true;
+                    touchmode = 2;
+                    drag.rView = view.r;
+                    drag.rMouse = math.matrix([touches[0].pageX,touches[0].pageY,0]);
+                    rotate.scale = view.scale;
+                    rotate.MView = view.M;
+                    rotate.rMouseMean = math.matrix([(touches[0].pageX + touches[1].pageX)/2,(touches[0].pageY + touches[1].pageY)/2,0]);
+                    rotate.rMouseSep = math.matrix([(touches[0].pageX - touches[1].pageX),(touches[0].pageY - touches[1].pageY),0]);
+                }
+            };
+
+            handleEnd = (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                touches = event.targetTouches;
+                if (touches.length == 0){
+                    mouse.down = false;
+                }
+                if (touches.length == 1 & touchmode == 2) {
+                    mouse.down = false;
+                }
+            };
+            
+
+            window.addEventListener('touchstart', handleStart, { passive: false });
+
+            window.addEventListener('touchmove', handleMove, { passive: false });
+
+            window.addEventListener('touchend', handleEnd, { passive: false });
+
+            
+            
+            function drawShape() {
+                window.clearTimeout(timer);
+                let w = theCanvas.width/2;
+                let h = theCanvas.height/2;
+
+                for (let i = 0; i < N; i++) {
+                    point = points[i];
+                    point.rView = math.subtract(math.multiply(view.M,point.r), view.r);
+                }
+                points.sort(function(a, b) { 
+                    return b.rView.get([2]) - a.rView.get([2]);
+                })
+                for (let i = 0; i < N; i++) {
+                    point = points[i];
+                    xView = w + view.scale*point.rView.get([0])/point.rView.get([2]);
+                    yView = h + view.scale*point.rView.get([1])/point.rView.get([2]);
+                    sizeView = view.scale*point.size/point.rView.get([2]);
+                    if (sizeView > 0) {
+                        theContext.beginPath();
+                        theContext.arc(xView, yView, sizeView, 0, 2*Math.PI);
+                        theContext.fillStyle = point.color;
+                        theContext.fill();
+                    }
+                }
+            }
+            
+            function moveShape() {
+                drawShape();
+            }
+            
+            function animate() {
+                theContext.clearRect(0, 0, theCanvas.width, theCanvas.height);
+                moveShape();
+                timer = window.setTimeout(animate, 1000/30);
+            }
+            
+            function initiate() {
+                window.clearTimeout(timer);
+                let w = theCanvas.width/2;
+                let h = theCanvas.height/2;
+                for (let i = 0; i < N; i++) {
+                    points[i] = {
+                        r : math.matrix([200*Math.cos(2*Math.PI*i/N), 0, 200*Math.sin(2*Math.PI*i/N)]),
+                        rView : math.matrix([0,0,0]),
+                        size : 5,
+                        color : "#"+(160 + Math.floor(50*Math.sin(2*Math.PI*i/N + 2*Math.PI/3))).toString(16).padStart(2,'0')+(160 + Math.floor(50*Math.sin(2*Math.PI*i/N + 4*Math.PI/3))).toString(16).padStart(2,'0')+(160 + Math.floor(50*Math.sin(2*Math.PI*i/N))).toString(16).padStart(2,'0'),
+                    };
+                    points[i].rView = math.subtract(math.multiply(view.M,points[i].r), view.r)
+                }
+                animate();
+            }
+            initiate();
+            
+        </script>
+    </body>
+</html>
